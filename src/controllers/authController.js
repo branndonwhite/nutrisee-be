@@ -33,4 +33,26 @@ const register = async (req, res) => {
   }
 };
 
-module.exports = { register };
+const completeProfile = async (req, res) => {
+  const { nickname, gender, date_of_birth, height, weight } = req.body;
+  const userId = req.user.userId;
+
+  if (!nickname || !gender || !date_of_birth || !height || !weight) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO user_profiles (user_id, nickname, gender, date_of_birth, height, weight)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [userId, nickname, gender, date_of_birth, height, weight]
+    );
+
+    res.status(201).json({ profile: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+module.exports = { register, completeProfile };
