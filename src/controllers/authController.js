@@ -1,6 +1,7 @@
 const pool = require('../db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const calculateCalorieGoal = require('../utils/calculateCalorieGoal');
 
 const register = async (req, res) => {
   const { email, password } = req.body;
@@ -81,14 +82,17 @@ const completeProfile = async (req, res) => {
   }
 
   try {
+    const dailyCalorieGoal = calculateCalorieGoal(weight, height, date_of_birth, gender);
+
     const result = await pool.query(
-      `INSERT INTO user_profiles (user_id, nickname, gender, date_of_birth, height, weight)
-      VALUES ($1, $2, $3, $4::date, $5, $6)
-      RETURNING id, user_id, nickname, gender, 
-      TO_CHAR(date_of_birth, 'YYYY-MM-DD') as date_of_birth,
-      height, weight, created_at`,
-      [userId, nickname, gender, date_of_birth, height, weight]
+      `INSERT INTO user_profiles (user_id, nickname, gender, date_of_birth, height, weight, daily_calorie_goal)
+       VALUES ($1, $2, $3, $4::date, $5, $6, $7)
+       RETURNING id, user_id, nickname, gender,
+       TO_CHAR(date_of_birth, 'YYYY-MM-DD') as date_of_birth,
+       height, weight, daily_calorie_goal, created_at`,
+      [userId, nickname, gender, date_of_birth, height, weight, dailyCalorieGoal]
     );
+
     const profile = result.rows[0];
 
     res.status(201).json({
@@ -96,6 +100,7 @@ const completeProfile = async (req, res) => {
         ...profile,
         height: parseFloat(profile.height),
         weight: parseFloat(profile.weight),
+        daily_calorie_goal: parseFloat(profile.daily_calorie_goal),
       }
     });
   } catch (err) {

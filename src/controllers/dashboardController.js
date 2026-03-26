@@ -1,5 +1,6 @@
 const pool = require('../db');
 const openai = require('../openai');
+const calculateCalorieGoal = require('../utils/calculateCalorieGoal');
 
 const getAIOverview = async (req, res) => {
   const userId = req.user.userId;
@@ -90,4 +91,79 @@ const getAIOverview = async (req, res) => {
   }
 };
 
-module.exports = { getAIOverview };
+const getDailyStats = async (req, res) => {
+  const userId = req.user.userId;
+  const today = new Date().toISOString().split('T')[0];
+
+  try {
+    // Fetch calorie goal from profile
+    const profileResult = await pool.query(
+      `SELECT daily_calorie_goal FROM user_profiles WHERE user_id = $1`,
+      [userId]
+    );
+    const { daily_calorie_goal } = profileResult.rows[0];
+
+    // Fetch today's nutrition
+    const todayResult = await pool.query(
+      `SELECT
+        COALESCE(SUM(calories), 0) as calories,
+        COALESCE(SUM(carbs), 0) as carbs,
+        COALESCE(SUM(protein), 0) as protein,
+        COALESCE(SUM(fat), 0) as fat,
+        COALESCE(SUM(sugar), 0) as sugar,
+        COALESCE(SUM(fiber), 0) as fiber
+       FROM meal_logs
+       WHERE user_id = $1 AND DATE(logged_at) = $2`,
+      [userId, today]
+    );
+    const todayStats = todayResult.rows[0];
+
+    // Fetch last 7 days progression
+    const progressionResult = await pool.query(
+      `SELECT
+        DATE(logged_at) as date,
+        COALESCE(SUM(calories), 0) as calories,
+        COALESCE(SUM(carbs), 0) as carbs,
+        COALESCE(SUM(protein), 0) as protein,
+        COALESCE(SUM(fat), 0) as fat,
+        COALESCE(SUM(sugar), 0) as sugar,
+        COALESCE(SUM(fiber), 0) as fiber
+       FROM meal_logs
+       WHERE user_id = $1
+       AND logged_at >= NOW() - INTERVAL '7 days'
+       GROUP BY DATE(logged_at)
+       ORDER BY date ASC`,
+      [userId]
+    );
+
+    const caloriesConsumed = parseFloat(todayStats.calories);
+    const calorieGoal = parseFloat(daily_calorie_goal);
+
+    res.json({
+      today: {
+        calorie_goal: calorieGoal,
+        calories_consumed: caloriesConsumed,
+        calories_remaining: calorieGoal - caloriesConsumed,
+        carbs: parseFloat(todayStats.carbs),
+        protein: parseFloat(todayStats.protein),
+        fat: parseFloat(todayStats.fat),
+        sugar: parseFloat(todayStats.sugar),
+        fiber: parseFloat(todayStats.fiber),
+      },
+      progression: progressionResult.rows.map(row => ({
+        date: row.date,
+        calories: parseFloat(row.calories),
+        carbs: parseFloat(row.carbs),
+        protein: parseFloat(row.protein),
+        fat: parseFloat(row.fat),
+        sugar: parseFloat(row.sugar),
+        fiber: parseFloat(row.fiber),
+      }))
+    });
+  } catch (err) {
+    console.error('getDailyStats error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+module.exports = { getAIOverview, getDailyStats };
