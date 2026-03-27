@@ -139,4 +139,73 @@ const getMealHistory = async (req, res) => {
   }
 };
 
-module.exports = { analyzeMeal, logMeal, getMealHistory };
+const analyzeTextMeal = async (req, res) => {
+  const { description, image } = req.body;
+
+  if (!description) {
+    return res.status(400).json({ error: 'Food description is required' });
+  }
+
+  try {
+    // Build content array dynamically
+    const content = [];
+
+    // Add image if provided
+    if (image) {
+      const imageBuffer = Buffer.from(image, 'base64');
+      const compressedBuffer = await sharp(imageBuffer)
+        .resize(800, 800, {
+          fit: 'inside',
+          withoutEnlargement: true
+        })
+        .jpeg({ quality: 80 })
+        .toBuffer();
+
+      const compressedBase64 = compressedBuffer.toString('base64');
+
+      content.push({
+        type: 'image_url',
+        image_url: {
+          url: `data:image/jpeg;base64,${compressedBase64}`,
+        },
+      });
+    }
+
+    // Always add text description
+    content.push({
+      type: 'text',
+      text: `You are a nutrition expert. Based on the following food description${image ? ' and image' : ''}, estimate the nutritional information.
+      Food description: "${description}"
+      
+      Respond ONLY in this exact JSON format, no extra text:
+      {
+        "food_name": "name of the food",
+        "calories": 000,
+        "carbs": 00,
+        "protein": 00,
+        "fat": 00,
+        "sugar": 00,
+        "fiber": 00
+      }
+      All values should be numbers (not strings).
+      Base estimates on a typical single serving size.`
+    });
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content }],
+      max_tokens: 200,
+    });
+
+    const responseContent = response.choices[0].message.content;
+    const cleaned = responseContent.replace(/```json|```/g, '').trim();
+    const nutrition = JSON.parse(cleaned);
+
+    res.json({ nutrition });
+  } catch (err) {
+    console.error('analyzeTextMeal error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+module.exports = { analyzeMeal, logMeal, getMealHistory, analyzeTextMeal };
