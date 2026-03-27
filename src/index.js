@@ -5,6 +5,7 @@ const authRoutes = require('./routes/auth');
 const dietaryRoutes = require('./routes/dietary');
 const dashboardRoutes = require('./routes/dashboard');
 const mealRoutes = require('./routes/meals');
+const factsRoutes = require('./routes/facts');
 
 const app = express();
 app.use(cors());
@@ -15,6 +16,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/dietary', dietaryRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/meals', mealRoutes);
+app.use('/api/facts', factsRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
