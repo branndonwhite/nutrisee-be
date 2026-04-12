@@ -65,24 +65,28 @@ const login = async (req, res) => {
 };
 
 const completeProfile = async (req, res) => {
-  const { nickname, gender, date_of_birth, height, weight } = req.body;
+  const { nickname, gender, date_of_birth, height, weight, activity_level, diet_goal } = req.body;
   const userId = req.user.userId;
 
-  if (!nickname || !gender || !date_of_birth || !height || !weight) {
+  if (!nickname || !gender || !date_of_birth || !height || !weight || !activity_level || !diet_goal) {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
   try {
+    const dailyCalorieGoal = calculateCalorieGoal(
+      weight, height, date_of_birth, gender, activity_level, diet_goal
+    );
+
     const result = await pool.query(
-      `INSERT INTO user_profiles (user_id, nickname, gender, date_of_birth, height, weight)
-      VALUES ($1, $2, $3, $4::date, $5, $6)
-      RETURNING id, user_id, nickname, gender, 
-      TO_CHAR(date_of_birth, 'YYYY-MM-DD') as date_of_birth,
-      height, weight, created_at`,
-      [userId, nickname, gender, date_of_birth, height, weight]
+      `INSERT INTO user_profiles 
+        (user_id, nickname, gender, date_of_birth, height, weight, activity_level, diet_goal, daily_calorie_goal)
+       VALUES ($1, $2, $3, $4::date, $5, $6, $7, $8, $9)
+       RETURNING id, user_id, nickname, gender,
+       TO_CHAR(date_of_birth, 'YYYY-MM-DD') as date_of_birth,
+       height, weight, activity_level, diet_goal, daily_calorie_goal`,
+      [userId, nickname, gender, date_of_birth, height, weight, activity_level, diet_goal, dailyCalorieGoal]
     );
     const profile = result.rows[0];
-
     res.status(201).json({
       profile: {
         ...profile,
