@@ -63,4 +63,4 @@ public/uploads/
 # Package lock (keep one, ignore the rest)
 # Uncomment the one you DON'T use:
 # package-lock.json
-# yarn.lock
+yarn.lock

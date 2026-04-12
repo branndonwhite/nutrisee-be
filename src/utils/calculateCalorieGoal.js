@@ -17,7 +17,7 @@ const calculateCalorieGoal = (weight, height, dateOfBirth, gender, activityLevel
   );
 
   let bmr;
-  if (gender.toLowerCase() === 'male' || gender.toLowerCase() === 'laki-laki') {
+  if (gender.toLowerCase() === 'laki-laki') {
     bmr = (10 * weight) + (6.25 * height) - (5 * age) + 5;
   } else {
     bmr = (10 * weight) + (6.25 * height) - (5 * age) - 161;

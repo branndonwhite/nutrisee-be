@@ -1,6 +1,7 @@
 const pool = require('../db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const calculateCalorieGoal = require('../utils/calculateCalorieGoal');
 
 const register = async (req, res) => {
   const { email, password } = req.body;
@@ -25,7 +26,11 @@ const register = async (req, res) => {
     );
 
     const user = result.rows[0];
-    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign(
+      { userId: user.id },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN }
+    );
 
     res.status(201).json({ token, user });
   } catch (err) {
@@ -53,7 +58,11 @@ const login = async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign(
+      { userId: user.id },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN }
+    );
 
     res.json({
       token,
@@ -86,12 +95,14 @@ const completeProfile = async (req, res) => {
        height, weight, activity_level, diet_goal, daily_calorie_goal`,
       [userId, nickname, gender, date_of_birth, height, weight, activity_level, diet_goal, dailyCalorieGoal]
     );
+
     const profile = result.rows[0];
     res.status(201).json({
       profile: {
         ...profile,
         height: parseFloat(profile.height),
         weight: parseFloat(profile.weight),
+        daily_calorie_goal: parseFloat(profile.daily_calorie_goal),
       }
     });
   } catch (err) {
