@@ -1,6 +1,7 @@
 const pool = require('../db');
 const openai = require('../openai');
 const sharp = require('sharp');
+const { uploadBase64 } = require('../utils/cloudinary');
 
 // Step 1: Analyze food photo
 const analyzeMeal = async (req, res) => {
@@ -11,20 +12,20 @@ const analyzeMeal = async (req, res) => {
   }
 
   try {
-    // Convert base64 to buffer
     const imageBuffer = Buffer.from(image, 'base64');
 
-    // Compress and resize image
     const compressedBuffer = await sharp(imageBuffer)
-      .resize(800, 800, { 
-        fit: 'inside',        // maintain aspect ratio
-        withoutEnlargement: true  // don't upscale small images
+      .resize(600, 600, {
+        fit: 'inside',
+        withoutEnlargement: true
       })
-      .jpeg({ quality: 80 }) // convert to jpeg at 80% quality
+      .jpeg({ quality: 60 })
       .toBuffer();
 
-    // Convert back to base64
     const compressedBase64 = compressedBuffer.toString('base64');
+
+    // Upload to Cloudinary, get a stable URL
+    const image_url = await uploadBase64(compressedBase64);
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -35,36 +36,50 @@ const analyzeMeal = async (req, res) => {
             {
               type: 'image_url',
               image_url: {
-                url: `data:image/jpeg;base64,${compressedBase64}`,
+                url: image_url,  // URL instead of base64
               },
             },
             {
               type: 'text',
-              text: `Analyze this food image and provide nutritional information.
-              Respond ONLY in this exact JSON format, no extra text:
+              text: `Analisis gambar makanan ini dan berikan informasi nutrisinya.
+              Respon dengan format JSON PERSIS di bawah ini, tanpa teks tambahan:
               {
-                "food_name": "name of the food",
+                "food_name": "nama makanan dalam Bahasa Indonesia",
                 "calories": 000,
                 "carbs": 00,
                 "protein": 00,
                 "fat": 00,
                 "sugar": 00,
-                "fiber": 00
+                "fiber": 00,
+                "vitamin_a": 00,
+                "vitamin_c": 00,
+                "vitamin_d": 00,
+                "calcium": 00,
+                "cholesterol": 00
               }
-              All values should be numbers (not strings).
-              Base estimates on a typical single serving size.`
+              Units:
+              - calories: kcal
+              - carbs, protein, fat, sugar, fiber: grams
+              - vitamin_a: mcg (micrograms RAE)
+              - vitamin_c: mg
+              - vitamin_d: mcg
+              - calcium: mg
+              - cholesterol: mg
+              Semua nilai dalam bentuk angka (bukan strings).
+              Estimasikan berdasarkan jumlah per sajian.`
             }
           ],
         }
       ],
-      max_tokens: 200,
+      max_tokens: 300,
     });
 
     const content = response.choices[0].message.content;
     const cleaned = content.replace(/```json|```/g, '').trim();
     const nutrition = JSON.parse(cleaned);
 
-    res.json({ nutrition });
+    // Return image_url so frontend can pass it to logMeal
+    res.json({ nutrition, image_url });
   } catch (err) {
     console.error('analyzeMeal error:', err.message);
     return res.status(500).json({ error: err.message });
@@ -73,7 +88,11 @@ const analyzeMeal = async (req, res) => {
 
 // Step 2: Save confirmed meal
 const logMeal = async (req, res) => {
-  const { food_name, calories, carbs, protein, fat, sugar, fiber } = req.body;
+  const {
+    food_name, calories, carbs, protein, fat, sugar, fiber,
+    vitamin_a, vitamin_c, vitamin_d, calcium, cholesterol,
+    image_url, description,
+  } = req.body;
   const userId = req.user.userId;
 
   if (!food_name || !calories) {
@@ -82,11 +101,17 @@ const logMeal = async (req, res) => {
 
   try {
     const result = await pool.query(
-      `INSERT INTO meal_logs 
-        (user_id, food_name, calories, carbs, protein, fat, sugar, fiber)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO meal_logs
+        (user_id, food_name, calories, carbs, protein, fat, sugar, fiber,
+         vitamin_a, vitamin_c, vitamin_d, calcium, cholesterol,
+         image_url, description)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING *`,
-      [userId, food_name, calories, carbs, protein, fat, sugar, fiber]
+      [
+        userId, food_name, calories, carbs, protein, fat, sugar, fiber,
+        vitamin_a ?? 0, vitamin_c ?? 0, vitamin_d ?? 0, calcium ?? 0, cholesterol ?? 0,
+        image_url ?? null, description ?? null,
+      ]
     );
 
     const meal = result.rows[0];
@@ -94,12 +119,17 @@ const logMeal = async (req, res) => {
     res.status(201).json({
       meal: {
         ...meal,
-        calories: parseFloat(meal.calories),
-        carbs: parseFloat(meal.carbs),
-        protein: parseFloat(meal.protein),
-        fat: parseFloat(meal.fat),
-        sugar: parseFloat(meal.sugar),
-        fiber: parseFloat(meal.fiber),
+        calories:    parseFloat(meal.calories),
+        carbs:       parseFloat(meal.carbs),
+        protein:     parseFloat(meal.protein),
+        fat:         parseFloat(meal.fat),
+        sugar:       parseFloat(meal.sugar),
+        fiber:       parseFloat(meal.fiber),
+        vitamin_a:   parseFloat(meal.vitamin_a),
+        vitamin_c:   parseFloat(meal.vitamin_c),
+        vitamin_d:   parseFloat(meal.vitamin_d),
+        calcium:     parseFloat(meal.calcium),
+        cholesterol: parseFloat(meal.cholesterol),
       }
     });
   } catch (err) {
@@ -114,7 +144,9 @@ const getMealHistory = async (req, res) => {
 
   try {
     const result = await pool.query(
-      `SELECT id, food_name, calories, carbs, protein, fat, sugar, fiber, logged_at
+      `SELECT id, food_name, calories, carbs, protein, fat, sugar, fiber,
+              vitamin_a, vitamin_c, vitamin_d, calcium, cholesterol,
+              image_url, description, logged_at
        FROM meal_logs
        WHERE user_id = $1
        ORDER BY logged_at DESC
@@ -124,12 +156,17 @@ const getMealHistory = async (req, res) => {
 
     const meals = result.rows.map(meal => ({
       ...meal,
-      calories: parseFloat(meal.calories),
-      carbs: parseFloat(meal.carbs),
-      protein: parseFloat(meal.protein),
-      fat: parseFloat(meal.fat),
-      sugar: parseFloat(meal.sugar),
-      fiber: parseFloat(meal.fiber),
+      calories:    parseFloat(meal.calories),
+      carbs:       parseFloat(meal.carbs),
+      protein:     parseFloat(meal.protein),
+      fat:         parseFloat(meal.fat),
+      sugar:       parseFloat(meal.sugar),
+      fiber:       parseFloat(meal.fiber),
+      vitamin_a:   parseFloat(meal.vitamin_a),
+      vitamin_c:   parseFloat(meal.vitamin_c),
+      vitamin_d:   parseFloat(meal.vitamin_d),
+      calcium:     parseFloat(meal.calcium),
+      cholesterol: parseFloat(meal.cholesterol),
     }));
 
     res.json({ meals });
@@ -139,6 +176,7 @@ const getMealHistory = async (req, res) => {
   }
 };
 
+// Analyze by text description (+ optional image)
 const analyzeTextMeal = async (req, res) => {
   const { description, image } = req.body;
 
@@ -147,61 +185,65 @@ const analyzeTextMeal = async (req, res) => {
   }
 
   try {
-    // Build content array dynamically
     const content = [];
 
-    // Add image if provided
     if (image) {
       const imageBuffer = Buffer.from(image, 'base64');
       const compressedBuffer = await sharp(imageBuffer)
-        .resize(800, 800, {
-          fit: 'inside',
-          withoutEnlargement: true
-        })
+        .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 80 })
         .toBuffer();
 
-      const compressedBase64 = compressedBuffer.toString('base64');
-
       content.push({
         type: 'image_url',
-        image_url: {
-          url: `data:image/jpeg;base64,${compressedBase64}`,
-        },
+        image_url: { url: `data:image/jpeg;base64,${compressedBuffer.toString('base64')}` },
       });
     }
 
-    // Always add text description
     content.push({
       type: 'text',
-      text: `You are a nutrition expert. Based on the following food description${image ? ' and image' : ''}, estimate the nutritional information.
-      Food description: "${description}"
+      text: `Kamu adalah ahli nutrisi. Berdasarkan deskripsi makanan${image ? ' dan gambar' : ''} berikut, estimasikan informasi nutrisi.
+      Deskripsi makanan: "${description}"
       
-      Respond ONLY in this exact JSON format, no extra text:
+      Respon HANYA dalam format JSON persis ini, tanpa teks tambahan:
       {
-        "food_name": "name of the food",
+        "food_name": "nama makanan dalam Bahasa Indonesia",
         "calories": 000,
         "carbs": 00,
         "protein": 00,
         "fat": 00,
         "sugar": 00,
-        "fiber": 00
+        "fiber": 00,
+        "vitamin_a": 00,
+        "vitamin_c": 00,
+        "vitamin_d": 00,
+        "calcium": 00,
+        "cholesterol": 00
       }
-      All values should be numbers (not strings).
-      Base estimates on a typical single serving size.`
+      Units:
+      - calories: kcal
+      - carbs, protein, fat, sugar, fiber: grams
+      - vitamin_a: mcg (micrograms RAE)
+      - vitamin_c: mg
+      - vitamin_d: mcg
+      - calcium: mg
+      - cholesterol: mg
+      Semua nilai dalam bentuk angka (bukan strings).
+      Estimasikan berdasarkan jumlah per sajian.`
     });
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [{ role: 'user', content }],
-      max_tokens: 200,
+      max_tokens: 300,
     });
 
     const responseContent = response.choices[0].message.content;
     const cleaned = responseContent.replace(/```json|```/g, '').trim();
     const nutrition = JSON.parse(cleaned);
 
-    res.json({ nutrition });
+    // Return description so frontend can pass it to logMeal
+    res.json({ nutrition, description });
   } catch (err) {
     console.error('analyzeTextMeal error:', err.message);
     return res.status(500).json({ error: err.message });
