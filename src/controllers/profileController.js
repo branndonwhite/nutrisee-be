@@ -1,90 +1,71 @@
 const pool = require('../db');
-const calculateCalorieGoal = require('../utils/calculateCalorieGoal');
+const { uploadBase64 } = require('../utils/cloudinary');
+const sharp = require('sharp');
 
+// ─── Upload profile image ─────────────────────────────────────────────────────
+const uploadProfileImage = async (req, res) => {
+  const { image } = req.body;
+  const userId = req.user.userId;
+
+  if (!image) {
+    return res.status(400).json({ error: 'Image is required' });
+  }
+
+  try {
+    // Compress to a square-friendly size before uploading
+    const imageBuffer = Buffer.from(image, 'base64');
+    const compressedBuffer = await sharp(imageBuffer)
+      .resize(400, 400, { fit: 'cover', position: 'centre' })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+
+    const compressedBase64 = compressedBuffer.toString('base64');
+    const avatar_url = await uploadBase64(compressedBase64, 'nutrisee/avatars');
+
+    await pool.query(
+      `UPDATE user_profiles SET avatar_url = $1 WHERE user_id = $2`,
+      [avatar_url, userId]
+    );
+
+    res.json({ avatar_url });
+  } catch (err) {
+    console.error('uploadProfileImage error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ─── Get profile (includes avatar_url) ───────────────────────────────────────
 const getProfile = async (req, res) => {
   const userId = req.user.userId;
 
   try {
     const result = await pool.query(
-      `SELECT 
-        u.email,
-        up.nickname,
-        up.gender,
-        TO_CHAR(up.date_of_birth, 'YYYY-MM-DD') as date_of_birth,
-        up.height,
-        up.weight,
-        up.daily_calorie_goal
-       FROM users u
-       JOIN user_profiles up ON u.id = up.user_id
-       WHERE u.id = $1`,
+      `SELECT nickname, gender, date_of_birth, height, weight,
+              activity_level, diet_goal, daily_calorie_goal,
+              target_weight, target_date, avatar_url
+       FROM user_profiles
+       WHERE user_id = $1`,
       [userId]
     );
 
-    if (result.rows.length === 0) {
+    if (!result.rows.length) {
       return res.status(404).json({ error: 'Profile not found' });
     }
 
-    const profile = result.rows[0];
-
+    const p = result.rows[0];
     res.json({
       profile: {
-        ...profile,
-        height: parseFloat(profile.height),
-        weight: parseFloat(profile.weight),
-        daily_calorie_goal: parseFloat(profile.daily_calorie_goal),
-      }
+        ...p,
+        height:             parseFloat(p.height),
+        weight:             parseFloat(p.weight),
+        daily_calorie_goal: parseFloat(p.daily_calorie_goal),
+        target_weight:      p.target_weight ? parseFloat(p.target_weight) : null,
+      },
     });
   } catch (err) {
     console.error('getProfile error:', err.message);
-    return res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 };
 
-const updateProfile = async (req, res) => {
-  const userId = req.user.userId;
-  const { nickname, gender, date_of_birth, height, weight } = req.body;
-
-  if (!nickname || !gender || !date_of_birth || !height || !weight) {
-    return res.status(400).json({ error: 'All fields are required' });
-  }
-
-  try {
-    // Recalculate calorie goal with new data
-    const dailyCalorieGoal = calculateCalorieGoal(weight, height, date_of_birth, gender);
-
-    const result = await pool.query(
-      `UPDATE user_profiles
-       SET nickname = $1,
-           gender = $2,
-           date_of_birth = $3::date,
-           height = $4,
-           weight = $5,
-           daily_calorie_goal = $6
-       WHERE user_id = $7
-       RETURNING id, user_id, nickname, gender,
-       TO_CHAR(date_of_birth, 'YYYY-MM-DD') as date_of_birth,
-       height, weight, daily_calorie_goal`,
-      [nickname, gender, date_of_birth, height, weight, dailyCalorieGoal, userId]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Profile not found' });
-    }
-
-    const profile = result.rows[0];
-
-    res.json({
-      profile: {
-        ...profile,
-        height: parseFloat(profile.height),
-        weight: parseFloat(profile.weight),
-        daily_calorie_goal: parseFloat(profile.daily_calorie_goal),
-      }
-    });
-  } catch (err) {
-    console.error('updateProfile error:', err.message);
-    return res.status(500).json({ error: err.message });
-  }
-};
-
-module.exports = { getProfile, updateProfile };
+module.exports = { uploadProfileImage, getProfile };

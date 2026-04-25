@@ -21,6 +21,7 @@ CREATE TABLE user_profiles (
   diet_goal VARCHAR(30),
   target_weight NUMERIC(5,2),
   target_date DATE,
+  avatar_url TEXT,
   created_at TIMESTAMP DEFAULT NOW()
 );
 

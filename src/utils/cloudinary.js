@@ -6,11 +6,12 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const uploadBase64 = async (base64) => {
+// folder defaults to 'nutrisee/meals', pass 'nutrisee/avatars' for profile images
+const uploadBase64 = async (base64, folder = 'nutrisee/meals') => {
   const result = await cloudinary.uploader.upload(
     `data:image/jpeg;base64,${base64}`,
     {
-      folder: 'nutrisee/meals',
+      folder,
       transformation: [{ width: 800, crop: 'limit', quality: 'auto' }],
     }
   );
