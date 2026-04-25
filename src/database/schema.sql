@@ -18,6 +18,9 @@ CREATE TABLE user_profiles (
   weight NUMERIC(5,2) NOT NULL,
   daily_calorie_goal NUMERIC(8,2),
   activity_level VARCHAR(20) NOT NULL,
+  diet_goal VARCHAR(30),
+  target_weight NUMERIC(5,2),
+  target_date DATE,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -61,3 +64,14 @@ CREATE TABLE meal_logs (
   location VARCHAR(255),
   logged_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Weight logs (historical weight tracking)
+CREATE TABLE weight_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  weight NUMERIC(5,2) NOT NULL,
+  logged_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_weight_logs_user_logged
+  ON weight_logs (user_id, logged_at DESC);

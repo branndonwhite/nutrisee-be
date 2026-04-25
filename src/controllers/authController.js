@@ -74,7 +74,11 @@ const login = async (req, res) => {
 };
 
 const completeProfile = async (req, res) => {
-  const { nickname, gender, date_of_birth, height, weight, activity_level, diet_goal } = req.body;
+  const {
+    nickname, gender, date_of_birth, height, weight,
+    activity_level, diet_goal,
+    target_weight, target_date,   // ← optional weight goal fields
+  } = req.body;
   const userId = req.user.userId;
 
   if (!nickname || !gender || !date_of_birth || !height || !weight || !activity_level || !diet_goal) {
@@ -87,22 +91,42 @@ const completeProfile = async (req, res) => {
     );
 
     const result = await pool.query(
-      `INSERT INTO user_profiles 
-        (user_id, nickname, gender, date_of_birth, height, weight, activity_level, diet_goal, daily_calorie_goal)
-       VALUES ($1, $2, $3, $4::date, $5, $6, $7, $8, $9)
-       RETURNING id, user_id, nickname, gender,
-       TO_CHAR(date_of_birth, 'YYYY-MM-DD') as date_of_birth,
-       height, weight, activity_level, diet_goal, daily_calorie_goal`,
-      [userId, nickname, gender, date_of_birth, height, weight, activity_level, diet_goal, dailyCalorieGoal]
+      `INSERT INTO user_profiles
+        (user_id, nickname, gender, date_of_birth, height, weight,
+        activity_level, diet_goal, daily_calorie_goal, target_weight, target_date)
+      VALUES ($1, $2, $3, $4::date, $5, $6, $7, $8, $9, $10, $11)
+      ON CONFLICT (user_id) DO UPDATE SET
+        nickname           = EXCLUDED.nickname,
+        gender             = EXCLUDED.gender,
+        date_of_birth      = EXCLUDED.date_of_birth,
+        height             = EXCLUDED.height,
+        weight             = EXCLUDED.weight,
+        activity_level     = EXCLUDED.activity_level,
+        diet_goal          = EXCLUDED.diet_goal,
+        daily_calorie_goal = EXCLUDED.daily_calorie_goal,
+        target_weight      = EXCLUDED.target_weight,
+        target_date        = EXCLUDED.target_date
+       RETURNING
+         id, user_id, nickname, gender,
+         TO_CHAR(date_of_birth, 'YYYY-MM-DD') AS date_of_birth,
+         height, weight, activity_level, diet_goal, daily_calorie_goal,
+         target_weight,
+         TO_CHAR(target_date, 'YYYY-MM-DD') AS target_date`,
+      [
+        userId, nickname, gender, date_of_birth, height, weight,
+        activity_level, diet_goal, dailyCalorieGoal,
+        target_weight ?? null, target_date ?? null,
+      ]
     );
 
     const profile = result.rows[0];
     res.status(201).json({
       profile: {
         ...profile,
-        height: parseFloat(profile.height),
-        weight: parseFloat(profile.weight),
+        height:             parseFloat(profile.height),
+        weight:             parseFloat(profile.weight),
         daily_calorie_goal: parseFloat(profile.daily_calorie_goal),
+        target_weight:      profile.target_weight ? parseFloat(profile.target_weight) : null,
       }
     });
   } catch (err) {
