@@ -176,9 +176,9 @@ const getMealHistory = async (req, res) => {
   }
 };
 
-// Analyze by text description (+ optional image)
+// Analyze by text description (+ optional image_url from Cloudinary)
 const analyzeTextMeal = async (req, res) => {
-  const { description, image } = req.body;
+  const { description, image_url } = req.body;
 
   if (!description) {
     return res.status(400).json({ error: 'Food description is required' });
@@ -187,22 +187,16 @@ const analyzeTextMeal = async (req, res) => {
   try {
     const content = [];
 
-    if (image) {
-      const imageBuffer = Buffer.from(image, 'base64');
-      const compressedBuffer = await sharp(imageBuffer)
-        .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 80 })
-        .toBuffer();
-
+    if (image_url) {
       content.push({
         type: 'image_url',
-        image_url: { url: `data:image/jpeg;base64,${compressedBuffer.toString('base64')}` },
+        image_url: { url: image_url },  // Cloudinary URL, no base64 needed
       });
     }
 
     content.push({
       type: 'text',
-      text: `Kamu adalah ahli nutrisi. Berdasarkan deskripsi makanan${image ? ' dan gambar' : ''} berikut, estimasikan informasi nutrisi.
+      text: `Kamu adalah ahli nutrisi. Berdasarkan deskripsi makanan${image_url ? ' dan gambar' : ''} berikut, estimasikan informasi nutrisi.
       Deskripsi makanan: "${description}"
       
       Respon HANYA dalam format JSON persis ini, tanpa teks tambahan:
