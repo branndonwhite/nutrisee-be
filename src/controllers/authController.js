@@ -75,11 +75,7 @@ const completeProfile = async (req, res) => {
   const {
     nickname, gender, date_of_birth, height, weight,
     activity_level, diet_goal,
-<<<<<<< Updated upstream
-    target_weight, target_date,   // ← optional weight goal fields
-=======
     target_weight, target_date,
->>>>>>> Stashed changes
   } = req.body;
   const userId = req.user.userId;
 
@@ -95,21 +91,6 @@ const completeProfile = async (req, res) => {
     const result = await pool.query(
       `INSERT INTO user_profiles
         (user_id, nickname, gender, date_of_birth, height, weight,
-<<<<<<< Updated upstream
-        activity_level, diet_goal, daily_calorie_goal, target_weight, target_date)
-      VALUES ($1, $2, $3, $4::date, $5, $6, $7, $8, $9, $10, $11)
-      ON CONFLICT (user_id) DO UPDATE SET
-        nickname           = EXCLUDED.nickname,
-        gender             = EXCLUDED.gender,
-        date_of_birth      = EXCLUDED.date_of_birth,
-        height             = EXCLUDED.height,
-        weight             = EXCLUDED.weight,
-        activity_level     = EXCLUDED.activity_level,
-        diet_goal          = EXCLUDED.diet_goal,
-        daily_calorie_goal = EXCLUDED.daily_calorie_goal,
-        target_weight      = EXCLUDED.target_weight,
-        target_date        = EXCLUDED.target_date
-=======
          activity_level, diet_goal, daily_calorie_goal,
          target_weight, target_date)
        VALUES ($1, $2, $3, $4::date, $5, $6, $7, $8, $9, $10, $11)
@@ -124,7 +105,6 @@ const completeProfile = async (req, res) => {
          daily_calorie_goal = EXCLUDED.daily_calorie_goal,
          target_weight      = EXCLUDED.target_weight,
          target_date        = EXCLUDED.target_date
->>>>>>> Stashed changes
        RETURNING
          id, user_id, nickname, gender,
          TO_CHAR(date_of_birth, 'YYYY-MM-DD') AS date_of_birth,
@@ -146,11 +126,7 @@ const completeProfile = async (req, res) => {
         weight:             parseFloat(profile.weight),
         daily_calorie_goal: parseFloat(profile.daily_calorie_goal),
         target_weight:      profile.target_weight ? parseFloat(profile.target_weight) : null,
-<<<<<<< Updated upstream
-      }
-=======
       },
->>>>>>> Stashed changes
     });
   } catch (err) {
     console.error('completeProfile error:', err.message);
