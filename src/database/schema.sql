@@ -21,6 +21,7 @@ CREATE TABLE user_profiles (
   diet_goal VARCHAR(30),
   target_weight NUMERIC(5,2),
   target_date DATE,
+  avatar_url TEXT,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -82,3 +83,6 @@ CREATE TABLE weight_logs (
 
 CREATE INDEX idx_weight_logs_user_logged
   ON weight_logs (user_id, logged_at DESC);
+  location VARCHAR(255),
+  logged_at TIMESTAMP DEFAULT NOW()
+);
