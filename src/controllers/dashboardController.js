@@ -235,11 +235,7 @@ const getDailyStats = async (req, res) => {
     const favoritFood = favoritResult.rows[0] ?? null;
 
     res.json({
-      profile: {
-        nickname: profile.nickname,
-        gender: profile.gender,
-        avatar_url: profile.avatar_url ?? null,
-      },
+      profile: { nickname: profile.nickname, gender: profile.gender?.toLowerCase() ?? '', avatar_url: profile.avatar_url ?? null },
       today: {
         calorie_goal: calorieGoal,
         calories_consumed: caloriesConsumed,
