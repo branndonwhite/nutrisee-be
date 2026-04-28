@@ -7,7 +7,8 @@ const dashboardRoutes = require('./routes/dashboard');
 const mealRoutes = require('./routes/meals');
 const factsRoutes = require('./routes/facts');
 const profileRoutes = require('./routes/profile');
-const weightRoutes    = require('./routes/weight');   // ← new
+const weightRoutes    = require('./routes/weight');   
+const badgesRoutes = require('./routes/badges');
 
 const app = express();
 app.use(cors());
@@ -20,7 +21,8 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/meals', mealRoutes);
 app.use('/api/facts', factsRoutes);
 app.use('/api/profile', profileRoutes);
-app.use('/api/weight',    weightRoutes);             // ← new
+app.use('/api/weight',    weightRoutes);             
+app.use('/api/badges', badgesRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
