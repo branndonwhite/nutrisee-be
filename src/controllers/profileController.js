@@ -4,6 +4,11 @@ const openai = require('../openai');
 const getLocalDate = (timezone) =>
   new Date().toLocaleDateString('en-CA', { timeZone: timezone });
 const getTimezone = (req) => req.headers['x-timezone'] ?? 'Asia/Jakarta';
+const get7DayStart = (timezone) => {
+  const d = new Date();
+  d.setDate(d.getDate() - 6);
+  return d.toLocaleDateString('en-CA', { timeZone: timezone });
+};
 const sharp = require('sharp');
 const { uploadBase64 } = require('../utils/cloudinary');
 
@@ -86,16 +91,17 @@ const getAITips = async (req, res) => {
         COALESCE(AVG(vitamin_c), 0) as avg_vitc,
         COALESCE(AVG(calcium), 0)   as avg_calcium
        FROM (
-         SELECT DATE(logged_at) as d,
+         SELECT DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) as d,
            SUM(calories) as calories, SUM(carbs) as carbs,
            SUM(protein) as protein, SUM(fat) as fat,
            SUM(vitamin_a) as vitamin_a, SUM(vitamin_c) as vitamin_c,
            SUM(calcium) as calcium
          FROM meal_logs
-         WHERE user_id = $1 AND logged_at >= NOW() - INTERVAL '7 days'
+         WHERE user_id = $1
+           AND DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) >= $3::date
          GROUP BY DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2)
        ) daily`,
-      [userId]
+      [userId, timezone, get7DayStart(timezone)]
     );
     const w = weekResult.rows[0];
 
@@ -149,7 +155,7 @@ const getWeeklyStats = async (req, res) => {
     });
 
     const result = await pool.query(
-      `SELECT DATE(logged_at) as date,
+      `SELECT DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) as date,
         COALESCE(SUM(calories), 0) as calories,
         COALESCE(SUM(carbs), 0)    as carbs,
         COALESCE(SUM(protein), 0)  as protein,
@@ -157,16 +163,16 @@ const getWeeklyStats = async (req, res) => {
         COALESCE(SUM(sugar), 0)    as sugar,
         COALESCE(SUM(fiber), 0)    as fiber
        FROM meal_logs
-       WHERE user_id = $1 AND logged_at >= NOW() - INTERVAL '7 days'
+       WHERE user_id = $1
+         AND DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) >= $3::date
        GROUP BY DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2)`,
-      [userId, timezone]
+      [userId, timezone, get7DayStart(timezone)]
     );
 
     const byDate = {};
     result.rows.forEach(r => {
-      const key = r.date instanceof Date
-        ? r.date.toLocaleDateString('en-CA', { timeZone: timezone })
-        : String(r.date);
+      // pg returns DATE as string 'YYYY-MM-DD' when using AT TIME ZONE
+      const key = typeof r.date === 'string' ? r.date : r.date.toISOString().split('T')[0];
       byDate[key] = r;
     });
 
