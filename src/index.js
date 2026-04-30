@@ -1,5 +1,5 @@
 require('dotenv').config();
-console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'loaded' : 'MISSING');
+console.log('ALL ENV KEYS:', Object.keys(process.env).join(', '));
 const express = require('express');
 const cors = require('cors');
 const authRoutes      = require('./routes/auth');
