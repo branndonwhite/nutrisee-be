@@ -1,5 +1,7 @@
 const pool = require('../db');
-const openai = require('../openai');
+const getOpenAI = require('../openai');
+
+const openai = getOpenAI();
 
 // ─── Timezone helpers ─────────────────────────────────────────────────────────
 const getLocalDate = (timezone) =>

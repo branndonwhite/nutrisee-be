@@ -1,4 +1,6 @@
-const openai = require('../openai');
+const getOpenAI = require('../openai');
+
+const openai = getOpenAI();
 
 const getRandomFact = async (req, res) => {
   try {

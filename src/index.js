@@ -1,5 +1,4 @@
 require('dotenv').config();
-console.log('ALL ENV KEYS:', Object.keys(process.env).join(', '));
 const express = require('express');
 const cors = require('cors');
 const authRoutes      = require('./routes/auth');

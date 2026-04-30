@@ -1,7 +1,9 @@
 const pool = require('../db');
-const openai = require('../openai');
+const getOpenAI = require('../openai');
 const sharp = require('sharp');
 const { uploadBase64 } = require('../utils/cloudinary');
+
+const openai = getOpenAI();
 
 // Step 1: Analyze food photo
 const analyzeMeal = async (req, res) => {
