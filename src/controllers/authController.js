@@ -119,6 +119,18 @@ const completeProfile = async (req, res) => {
     );
 
     const profile = result.rows[0];
+
+    const existingLog = await pool.query(
+      'SELECT id FROM weight_logs WHERE user_id = $1 LIMIT 1',
+      [userId]
+    );
+    if (existingLog.rows.length === 0) {
+      await pool.query(
+        'INSERT INTO weight_logs (user_id, weight) VALUES ($1, $2)',
+        [userId, weight]
+      );
+    }
+
     res.status(201).json({
       profile: {
         ...profile,
