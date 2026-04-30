@@ -49,19 +49,19 @@ const getAIOverview = async (req, res) => {
         COALESCE(SUM(fiber), 0)   as fiber
        FROM meal_logs
        WHERE user_id = $1
-         AND DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) = $3`,
+         AND (logged_at AT TIME ZONE $2)::date::text = $3`,
       [userId, timezone, today]
     );
     const todayNutrition = todayResult.rows[0];
 
     const weekResult = await pool.query(
       `SELECT
-        DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) as date,
+        (logged_at AT TIME ZONE $2)::date AS date,
         COALESCE(SUM(calories), 0) as calories
        FROM meal_logs
        WHERE user_id = $1
-         AND DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) >= $3::date
-       GROUP BY DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2)
+         AND (logged_at AT TIME ZONE $2)::date >= $3::date
+       GROUP BY (logged_at AT TIME ZONE $2)::date
        ORDER BY date ASC`,
       [userId, timezone, get7DayStart(timezone)]
     );
@@ -170,7 +170,7 @@ const getDailyStats = async (req, res) => {
         COALESCE(SUM(fiber), 0)    as fiber
        FROM meal_logs
        WHERE user_id = $1
-         AND DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) = $3`,
+         AND (logged_at AT TIME ZONE $2)::date::text = $3`,
       [userId, timezone, today]
     );
     const todayStats = todayResult.rows[0];
@@ -178,7 +178,7 @@ const getDailyStats = async (req, res) => {
 
     const progressionResult = await pool.query(
       `SELECT
-        DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) as date,
+        (logged_at AT TIME ZONE $2)::date AS date,
         COALESCE(SUM(calories), 0) as calories,
         COALESCE(SUM(carbs), 0)    as carbs,
         COALESCE(SUM(protein), 0)  as protein,
@@ -187,19 +187,19 @@ const getDailyStats = async (req, res) => {
         COALESCE(SUM(fiber), 0)    as fiber
        FROM meal_logs
        WHERE user_id = $1
-        AND DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) >= $3::date
-       GROUP BY DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2)
+        AND (logged_at AT TIME ZONE $2)::date >= $3::date
+       GROUP BY (logged_at AT TIME ZONE $2)::date
        ORDER BY date ASC`,
       [userId, timezone, get7DayStart(timezone)]
     );
-
+    
     const pencapaianResult = await pool.query(
       `SELECT
         COALESCE(SUM(calories), 0) as total_calories,
-        COUNT(DISTINCT DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2)) as days_logged
+        COUNT(DISTINCT DATE(logged_at AT TIME ZONE $2)) as days_logged
        FROM meal_logs
        WHERE user_id = $1
-         AND DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) >= $3::date`,
+         AND (logged_at AT TIME ZONE $2)::date >= $3::date`,
       [userId, timezone, get7DayStart(timezone)]
     );
     const pencapaianData = pencapaianResult.rows[0];
@@ -225,7 +225,7 @@ const getDailyStats = async (req, res) => {
       `SELECT food_name, COUNT(*) as count
        FROM meal_logs
        WHERE user_id = $1
-        AND DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) >= $3::date
+        AND (logged_at AT TIME ZONE $2)::date >= $3::date
        GROUP BY food_name ORDER BY count DESC LIMIT 1`,
       [userId, timezone, get7DayStart(timezone)]
     );

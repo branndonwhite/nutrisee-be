@@ -28,7 +28,7 @@ const getBadges = async (req, res) => {
 
     // Streak — get all distinct logged dates in user's timezone
     const logsResult = await pool.query(
-      `SELECT DISTINCT DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) as log_date
+      `SELECT DISTINCT DATE(logged_at AT TIME ZONE $2) as log_date
        FROM meal_logs WHERE user_id = $1
        ORDER BY log_date DESC`,
       [userId, timezone]
@@ -53,7 +53,7 @@ const getBadges = async (req, res) => {
 
     // Days where all micronutrients were logged with values > 0
     const nutrientResult = await pool.query(
-      `SELECT COUNT(DISTINCT DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2)) as days
+      `SELECT COUNT(DISTINCT DATE(logged_at AT TIME ZONE $2)) as days
        FROM meal_logs
        WHERE user_id = $1
          AND vitamin_a > 0 AND vitamin_c > 0 AND vitamin_d > 0 AND calcium > 0`,

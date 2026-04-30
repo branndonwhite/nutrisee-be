@@ -91,15 +91,15 @@ const getAITips = async (req, res) => {
         COALESCE(AVG(vitamin_c), 0) as avg_vitc,
         COALESCE(AVG(calcium), 0)   as avg_calcium
        FROM (
-         SELECT DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) as d,
+         SELECT (logged_at AT TIME ZONE $2)::date AS d,
            SUM(calories) as calories, SUM(carbs) as carbs,
            SUM(protein) as protein, SUM(fat) as fat,
            SUM(vitamin_a) as vitamin_a, SUM(vitamin_c) as vitamin_c,
            SUM(calcium) as calcium
          FROM meal_logs
          WHERE user_id = $1
-           AND DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) >= $3::date
-         GROUP BY DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2)
+           AND (logged_at AT TIME ZONE $2)::date >= $3::date
+         GROUP BY (logged_at AT TIME ZONE $2)::date
        ) daily`,
       [userId, timezone, get7DayStart(timezone)]
     );
@@ -155,7 +155,7 @@ const getWeeklyStats = async (req, res) => {
     });
 
     const result = await pool.query(
-      `SELECT DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) as date,
+      `SELECT (logged_at AT TIME ZONE $2)::date AS date,
         COALESCE(SUM(calories), 0) as calories,
         COALESCE(SUM(carbs), 0)    as carbs,
         COALESCE(SUM(protein), 0)  as protein,
@@ -164,15 +164,16 @@ const getWeeklyStats = async (req, res) => {
         COALESCE(SUM(fiber), 0)    as fiber
        FROM meal_logs
        WHERE user_id = $1
-         AND DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) >= $3::date
-       GROUP BY DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2)`,
+         AND (logged_at AT TIME ZONE $2)::date >= $3::date
+       GROUP BY (logged_at AT TIME ZONE $2)::date`,
       [userId, timezone, get7DayStart(timezone)]
     );
 
     const byDate = {};
     result.rows.forEach(r => {
-      // pg returns DATE as string 'YYYY-MM-DD' when using AT TIME ZONE
-      const key = typeof r.date === 'string' ? r.date : r.date.toISOString().split('T')[0];
+      // r.date is midnight UTC e.g. "2026-04-29T16:00:00.000Z" = Apr 30 KL
+      // Convert using device timezone to get correct local date
+      const key = new Date(r.date).toLocaleDateString('en-CA', { timeZone: timezone });
       byDate[key] = r;
     });
 
