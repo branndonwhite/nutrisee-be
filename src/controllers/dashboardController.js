@@ -7,6 +7,13 @@ const getLocalDate = (timezone) =>
 
 const getTimezone = (req) => req.headers['x-timezone'] ?? 'Asia/Jakarta';
 
+// Get the YYYY-MM-DD of 6 days ago in the user's timezone
+const get7DayStart = (timezone) => {
+  const d = new Date();
+  d.setDate(d.getDate() - 6);
+  return d.toLocaleDateString('en-CA', { timeZone: timezone });
+};
+
 // ─── AI Overview ──────────────────────────────────────────────────────────────
 const getAIOverview = async (req, res) => {
   const userId = req.user.userId;
@@ -42,21 +49,21 @@ const getAIOverview = async (req, res) => {
         COALESCE(SUM(fiber), 0)   as fiber
        FROM meal_logs
        WHERE user_id = $1
-         AND DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) = $3`,
+         AND (logged_at AT TIME ZONE $2)::date::text = $3`,
       [userId, timezone, today]
     );
     const todayNutrition = todayResult.rows[0];
 
     const weekResult = await pool.query(
       `SELECT
-        DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) as date,
+        (logged_at AT TIME ZONE $2)::date AS date,
         COALESCE(SUM(calories), 0) as calories
        FROM meal_logs
        WHERE user_id = $1
-         AND logged_at >= NOW() - INTERVAL '7 days'
-       GROUP BY DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2)
+         AND (logged_at AT TIME ZONE $2)::date >= $3::date
+       GROUP BY (logged_at AT TIME ZONE $2)::date
        ORDER BY date ASC`,
-      [userId, timezone]
+      [userId, timezone, get7DayStart(timezone)]
     );
     const weekData = weekResult.rows;
     const daysLogged = weekData.length;
@@ -111,7 +118,8 @@ Berikan pujian spesifik, tips actionable, dan motivasi singkat. Bahasa Indonesia
     await pool.query(
       `INSERT INTO ai_overviews (user_id, content, date, type)
        VALUES ($1, $2, $3, 'overview')
-       ON CONFLICT (user_id, date, type) DO UPDATE SET content = $2`,
+       ON CONFLICT (user_id, date, type)
+       DO UPDATE SET content = EXCLUDED.content`,
       [userId, content, today]
     );
 
@@ -162,7 +170,7 @@ const getDailyStats = async (req, res) => {
         COALESCE(SUM(fiber), 0)    as fiber
        FROM meal_logs
        WHERE user_id = $1
-         AND DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) = $3`,
+         AND (logged_at AT TIME ZONE $2)::date::text = $3`,
       [userId, timezone, today]
     );
     const todayStats = todayResult.rows[0];
@@ -170,7 +178,7 @@ const getDailyStats = async (req, res) => {
 
     const progressionResult = await pool.query(
       `SELECT
-        DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2) as date,
+        (logged_at AT TIME ZONE $2)::date AS date,
         COALESCE(SUM(calories), 0) as calories,
         COALESCE(SUM(carbs), 0)    as carbs,
         COALESCE(SUM(protein), 0)  as protein,
@@ -178,19 +186,21 @@ const getDailyStats = async (req, res) => {
         COALESCE(SUM(sugar), 0)    as sugar,
         COALESCE(SUM(fiber), 0)    as fiber
        FROM meal_logs
-       WHERE user_id = $1 AND logged_at >= NOW() - INTERVAL '7 days'
-       GROUP BY DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2)
+       WHERE user_id = $1
+        AND (logged_at AT TIME ZONE $2)::date >= $3::date
+       GROUP BY (logged_at AT TIME ZONE $2)::date
        ORDER BY date ASC`,
-      [userId, timezone]
+      [userId, timezone, get7DayStart(timezone)]
     );
-
+    
     const pencapaianResult = await pool.query(
       `SELECT
         COALESCE(SUM(calories), 0) as total_calories,
-        COUNT(DISTINCT DATE(logged_at AT TIME ZONE 'UTC' AT TIME ZONE $2)) as days_logged
+        COUNT(DISTINCT DATE(logged_at AT TIME ZONE $2)) as days_logged
        FROM meal_logs
-       WHERE user_id = $1 AND logged_at >= NOW() - INTERVAL '7 days'`,
-      [userId, timezone]
+       WHERE user_id = $1
+         AND (logged_at AT TIME ZONE $2)::date >= $3::date`,
+      [userId, timezone, get7DayStart(timezone)]
     );
     const pencapaianData = pencapaianResult.rows[0];
     const daysLogged = parseInt(pencapaianData.days_logged);
@@ -214,9 +224,10 @@ const getDailyStats = async (req, res) => {
     const favoritResult = await pool.query(
       `SELECT food_name, COUNT(*) as count
        FROM meal_logs
-       WHERE user_id = $1 AND logged_at >= NOW() - INTERVAL '7 days'
+       WHERE user_id = $1
+        AND (logged_at AT TIME ZONE $2)::date >= $3::date
        GROUP BY food_name ORDER BY count DESC LIMIT 1`,
-      [userId]
+      [userId, timezone, get7DayStart(timezone)]
     );
     const favoritFood = favoritResult.rows[0] ?? null;
 

@@ -91,7 +91,7 @@ const logMeal = async (req, res) => {
   const {
     food_name, calories, carbs, protein, fat, sugar, fiber,
     vitamin_a, vitamin_c, vitamin_d, calcium, cholesterol,
-    image_url, description,
+    image_url, description, location,
   } = req.body;
   const userId = req.user.userId;
 
@@ -104,13 +104,13 @@ const logMeal = async (req, res) => {
       `INSERT INTO meal_logs
         (user_id, food_name, calories, carbs, protein, fat, sugar, fiber,
          vitamin_a, vitamin_c, vitamin_d, calcium, cholesterol,
-         image_url, description)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+         image_url, description, location)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        RETURNING *`,
       [
         userId, food_name, calories, carbs, protein, fat, sugar, fiber,
         vitamin_a ?? 0, vitamin_c ?? 0, vitamin_d ?? 0, calcium ?? 0, cholesterol ?? 0,
-        image_url ?? null, description ?? null,
+        image_url ?? null, description ?? null, location ?? null,
       ]
     );
 
@@ -141,17 +141,18 @@ const logMeal = async (req, res) => {
 // Get meal history
 const getMealHistory = async (req, res) => {
   const userId = req.user.userId;
+  const limit = Math.min(parseInt(req.query.limit) || 20, 200);
 
   try {
     const result = await pool.query(
       `SELECT id, food_name, calories, carbs, protein, fat, sugar, fiber,
               vitamin_a, vitamin_c, vitamin_d, calcium, cholesterol,
-              image_url, description, logged_at
+              image_url, description, location, logged_at
        FROM meal_logs
        WHERE user_id = $1
        ORDER BY logged_at DESC
-       LIMIT 20`,
-      [userId]
+       LIMIT $2`,
+      [userId, limit]
     );
 
     const meals = result.rows.map(meal => ({
