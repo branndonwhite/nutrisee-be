@@ -72,7 +72,7 @@ CREATE TABLE meal_logs (
   calcium NUMERIC(8,2) DEFAULT 0,
   cholesterol NUMERIC(8,2) DEFAULT 0,
   location VARCHAR(255),
-  logged_at TIMESTAMP DEFAULT NOW()
+  logged_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Weight logs (historical weight tracking)
