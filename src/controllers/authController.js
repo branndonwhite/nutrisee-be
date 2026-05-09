@@ -146,4 +146,17 @@ const completeProfile = async (req, res) => {
   }
 };
 
-module.exports = { authenticate, completeProfile };
+const checkProfile = async (req, res) => {
+  const userId = req.user.userId;
+  try {
+    const result = await pool.query(
+      'SELECT id FROM user_profiles WHERE user_id = $1',
+      [userId]
+    );
+    res.json({ hasProfile: result.rows.length > 0 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+module.exports = { authenticate, completeProfile, checkProfile };
