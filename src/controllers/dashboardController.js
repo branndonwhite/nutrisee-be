@@ -164,12 +164,17 @@ const getDailyStats = async (req, res) => {
 
     const todayResult = await pool.query(
       `SELECT
-        COALESCE(SUM(calories), 0) as calories,
-        COALESCE(SUM(carbs), 0)    as carbs,
-        COALESCE(SUM(protein), 0)  as protein,
-        COALESCE(SUM(fat), 0)      as fat,
-        COALESCE(SUM(sugar), 0)    as sugar,
-        COALESCE(SUM(fiber), 0)    as fiber
+        COALESCE(SUM(calories), 0)    as calories,
+        COALESCE(SUM(carbs), 0)       as carbs,
+        COALESCE(SUM(protein), 0)     as protein,
+        COALESCE(SUM(fat), 0)         as fat,
+        COALESCE(SUM(sugar), 0)       as sugar,
+        COALESCE(SUM(fiber), 0)       as fiber,
+        COALESCE(SUM(vitamin_a), 0)   as vitamin_a,
+        COALESCE(SUM(vitamin_c), 0)   as vitamin_c,
+        COALESCE(SUM(vitamin_d), 0)   as vitamin_d,
+        COALESCE(SUM(calcium), 0)     as calcium,
+        COALESCE(SUM(cholesterol), 0) as cholesterol
        FROM meal_logs
        WHERE user_id = $1
          AND (logged_at AT TIME ZONE $2)::date::text = $3`,
@@ -239,11 +244,16 @@ const getDailyStats = async (req, res) => {
         calorie_goal: calorieGoal,
         calories_consumed: caloriesConsumed,
         calories_remaining: calorieGoal - caloriesConsumed,
-        carbs:   parseFloat(todayStats.carbs),
-        protein: parseFloat(todayStats.protein),
-        fat:     parseFloat(todayStats.fat),
-        sugar:   parseFloat(todayStats.sugar),
-        fiber:   parseFloat(todayStats.fiber),
+        carbs:       parseFloat(todayStats.carbs),
+        protein:     parseFloat(todayStats.protein),
+        fat:         parseFloat(todayStats.fat),
+        sugar:       parseFloat(todayStats.sugar),
+        fiber:       parseFloat(todayStats.fiber),
+        vitamin_a:   parseFloat(todayStats.vitamin_a),
+        vitamin_c:   parseFloat(todayStats.vitamin_c),
+        vitamin_d:   parseFloat(todayStats.vitamin_d),
+        calcium:     parseFloat(todayStats.calcium),
+        cholesterol: parseFloat(todayStats.cholesterol),
       },
       progression: progressionResult.rows.map(row => ({
         date: row.date,

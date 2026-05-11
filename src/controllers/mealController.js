@@ -97,7 +97,7 @@ const logMeal = async (req, res) => {
   } = req.body;
   const userId = req.user.userId;
 
-  if (!food_name || !calories) {
+  if (!food_name || calories == null) {
     return res.status(400).json({ error: 'food_name and calories are required' });
   }
 
@@ -183,8 +183,8 @@ const getMealHistory = async (req, res) => {
 const analyzeTextMeal = async (req, res) => {
   const { description, image_url } = req.body;
 
-  if (!description) {
-    return res.status(400).json({ error: 'Food description is required' });
+  if (!description && !image_url) {
+    return res.status(400).json({ error: 'Food description or image is required' });
   }
 
   try {
@@ -193,14 +193,18 @@ const analyzeTextMeal = async (req, res) => {
     if (image_url) {
       content.push({
         type: 'image_url',
-        image_url: { url: image_url },  // Cloudinary URL, no base64 needed
+        image_url: { url: image_url },
       });
     }
 
+    const descriptionLine = description
+      ? `Deskripsi makanan: "${description}"`
+      : 'Identifikasi makanan dari gambar yang diberikan.';
+
     content.push({
       type: 'text',
-      text: `Kamu adalah ahli nutrisi. Berdasarkan deskripsi makanan${image_url ? ' dan gambar' : ''} berikut, estimasikan informasi nutrisi.
-      Deskripsi makanan: "${description}"
+      text: `Kamu adalah ahli nutrisi. Berdasarkan ${image_url && description ? 'deskripsi makanan dan gambar' : image_url ? 'gambar' : 'deskripsi makanan'} berikut, estimasikan informasi nutrisi.
+      ${descriptionLine}
       
       Respon HANYA dalam format JSON persis ini, tanpa teks tambahan:
       {
@@ -240,7 +244,7 @@ const analyzeTextMeal = async (req, res) => {
     const nutrition = JSON.parse(cleaned);
 
     // Return description so frontend can pass it to logMeal
-    res.json({ nutrition, description });
+    res.json({ nutrition, description: description || nutrition.food_name });
   } catch (err) {
     console.error('analyzeTextMeal error:', err.message);
     return res.status(500).json({ error: err.message });
