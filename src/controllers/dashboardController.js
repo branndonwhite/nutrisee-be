@@ -39,6 +39,9 @@ const getAIOverview = async (req, res) => {
       [userId]
     );
     const profile = profileResult.rows[0];
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found', code: 'NO_PROFILE' });
+    }
     const age = new Date().getFullYear() - new Date(profile.date_of_birth).getFullYear();
 
     const todayResult = await pool.query(
@@ -146,6 +149,9 @@ const getDailyStats = async (req, res) => {
       [userId]
     );
     const profile = profileResult.rows[0];
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found', code: 'NO_PROFILE' });
+    }
     const calorieGoal = parseFloat(profile.daily_calorie_goal);
 
     const macroSplit = {
