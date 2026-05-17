@@ -251,4 +251,90 @@ const analyzeTextMeal = async (req, res) => {
   }
 };
 
-module.exports = { analyzeMeal, logMeal, getMealHistory, analyzeTextMeal };
+// Upload image to Cloudinary (no analysis) — used for additional-info re-scan
+const uploadImage = async (req, res) => {
+  const { image } = req.body;
+  if (!image) return res.status(400).json({ error: 'Image is required' });
+  try {
+    const imageBuffer = Buffer.from(image, 'base64');
+    const compressedBuffer = await sharp(imageBuffer)
+      .resize(600, 600, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 60 })
+      .toBuffer();
+    const image_url = await uploadBase64(compressedBuffer.toString('base64'));
+    res.json({ image_url });
+  } catch (err) {
+    console.error('uploadImage error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Analyze image + description together (PATCH /meals/analyze)
+const analyzeMealCombined = async (req, res) => {
+  const { image, description } = req.body;
+
+  if (!image) return res.status(400).json({ error: 'Image is required' });
+
+  try {
+    // Compress + upload image
+    const imageBuffer = Buffer.from(image, 'base64');
+    const compressedBuffer = await sharp(imageBuffer)
+      .resize(600, 600, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 60 })
+      .toBuffer();
+    const image_url = await uploadBase64(compressedBuffer.toString('base64'));
+
+    // Build prompt with both image and description
+    const content = [
+      { type: 'image_url', image_url: { url: image_url } },
+      {
+        type: 'text',
+        text: `Kamu adalah ahli nutrisi. Berdasarkan gambar dan deskripsi makanan berikut, estimasikan informasi nutrisi.
+        ${description ? `Deskripsi makanan: "${description}"` : 'Identifikasi makanan dari gambar yang diberikan.'}
+
+        Respon HANYA dalam format JSON persis ini, tanpa teks tambahan:
+        {
+          "food_name": "nama makanan dalam Bahasa Indonesia",
+          "calories": 000,
+          "carbs": 00,
+          "protein": 00,
+          "fat": 00,
+          "sugar": 00,
+          "fiber": 00,
+          "vitamin_a": 00,
+          "vitamin_c": 00,
+          "vitamin_d": 00,
+          "calcium": 00,
+          "cholesterol": 00
+        }
+        Units:
+        - calories: kcal
+        - carbs, protein, fat, sugar, fiber: grams
+        - vitamin_a: mcg (micrograms RAE)
+        - vitamin_c: mg
+        - vitamin_d: mcg
+        - calcium: mg
+        - cholesterol: mg
+        Semua nilai dalam bentuk angka (bukan strings).
+        Estimasikan berdasarkan jumlah per sajian.`,
+      },
+    ];
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content }],
+      max_tokens: 300,
+    });
+
+    const responseContent = response.choices[0].message.content;
+    const cleaned = responseContent.replace(/```json|```/g, '').trim();
+    const nutrition = JSON.parse(cleaned);
+
+    res.json({ nutrition, image_url, description: description || nutrition.food_name });
+  } catch (err) {
+    console.error('analyzeMealCombined error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+module.exports = { analyzeMeal, logMeal, getMealHistory, analyzeTextMeal, uploadImage, analyzeMealCombined };
