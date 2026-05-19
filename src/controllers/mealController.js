@@ -44,6 +44,7 @@ const analyzeMeal = async (req, res) => {
             {
               type: 'text',
               text: `Analisis gambar makanan ini dan berikan informasi nutrisinya.
+              Sebisa mungkin identifikasi makanan Indonesia sebelum mengidentifikasikannya sebagai makanan luar Indonesia.
               Respon dengan format JSON PERSIS di bawah ini, tanpa teks tambahan:
               {
                 "food_name": "nama makanan dalam Bahasa Indonesia",

@@ -9,7 +9,7 @@ const getRandomFact = async (req, res) => {
       messages: [
         {
           role: 'user',
-          content: `Generate a single interesting and surprising fun fact about food, 
+          content: `Generate a single interesting and surprising fun fact about Indonesian food, 
           nutrition, or ingredients. 
           
           Rules:
