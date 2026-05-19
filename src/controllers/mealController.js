@@ -44,6 +44,7 @@ const analyzeMeal = async (req, res) => {
             {
               type: 'text',
               text: `Analisis gambar makanan ini dan berikan informasi nutrisinya.
+              Sebisa mungkin identifikasi makanan Indonesia sebelum mengidentifikasikannya sebagai makanan luar Indonesia.
               Respon dengan format JSON PERSIS di bawah ini, tanpa teks tambahan:
               {
                 "food_name": "nama makanan dalam Bahasa Indonesia",
@@ -97,7 +98,7 @@ const logMeal = async (req, res) => {
   } = req.body;
   const userId = req.user.userId;
 
-  if (!food_name || !calories) {
+  if (!food_name || calories == null) {
     return res.status(400).json({ error: 'food_name and calories are required' });
   }
 
@@ -183,8 +184,8 @@ const getMealHistory = async (req, res) => {
 const analyzeTextMeal = async (req, res) => {
   const { description, image_url } = req.body;
 
-  if (!description) {
-    return res.status(400).json({ error: 'Food description is required' });
+  if (!description && !image_url) {
+    return res.status(400).json({ error: 'Food description or image is required' });
   }
 
   try {
@@ -193,14 +194,18 @@ const analyzeTextMeal = async (req, res) => {
     if (image_url) {
       content.push({
         type: 'image_url',
-        image_url: { url: image_url },  // Cloudinary URL, no base64 needed
+        image_url: { url: image_url },
       });
     }
 
+    const descriptionLine = description
+      ? `Deskripsi makanan: "${description}"`
+      : 'Identifikasi makanan dari gambar yang diberikan.';
+
     content.push({
       type: 'text',
-      text: `Kamu adalah ahli nutrisi. Berdasarkan deskripsi makanan${image_url ? ' dan gambar' : ''} berikut, estimasikan informasi nutrisi.
-      Deskripsi makanan: "${description}"
+      text: `Kamu adalah ahli nutrisi. Berdasarkan ${image_url && description ? 'deskripsi makanan dan gambar' : image_url ? 'gambar' : 'deskripsi makanan'} berikut, estimasikan informasi nutrisi.
+      ${descriptionLine}
       
       Respon HANYA dalam format JSON persis ini, tanpa teks tambahan:
       {
@@ -240,11 +245,97 @@ const analyzeTextMeal = async (req, res) => {
     const nutrition = JSON.parse(cleaned);
 
     // Return description so frontend can pass it to logMeal
-    res.json({ nutrition, description });
+    res.json({ nutrition, description: description || nutrition.food_name });
   } catch (err) {
     console.error('analyzeTextMeal error:', err.message);
     return res.status(500).json({ error: err.message });
   }
 };
 
-module.exports = { analyzeMeal, logMeal, getMealHistory, analyzeTextMeal };
+// Upload image to Cloudinary (no analysis) — used for additional-info re-scan
+const uploadImage = async (req, res) => {
+  const { image } = req.body;
+  if (!image) return res.status(400).json({ error: 'Image is required' });
+  try {
+    const imageBuffer = Buffer.from(image, 'base64');
+    const compressedBuffer = await sharp(imageBuffer)
+      .resize(600, 600, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 60 })
+      .toBuffer();
+    const image_url = await uploadBase64(compressedBuffer.toString('base64'));
+    res.json({ image_url });
+  } catch (err) {
+    console.error('uploadImage error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Analyze image + description together (PATCH /meals/analyze)
+const analyzeMealCombined = async (req, res) => {
+  const { image, description } = req.body;
+
+  if (!image) return res.status(400).json({ error: 'Image is required' });
+
+  try {
+    // Compress + upload image
+    const imageBuffer = Buffer.from(image, 'base64');
+    const compressedBuffer = await sharp(imageBuffer)
+      .resize(600, 600, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 60 })
+      .toBuffer();
+    const image_url = await uploadBase64(compressedBuffer.toString('base64'));
+
+    // Build prompt with both image and description
+    const content = [
+      { type: 'image_url', image_url: { url: image_url } },
+      {
+        type: 'text',
+        text: `Kamu adalah ahli nutrisi. Berdasarkan gambar dan deskripsi makanan berikut, estimasikan informasi nutrisi.
+        ${description ? `Deskripsi makanan: "${description}"` : 'Identifikasi makanan dari gambar yang diberikan.'}
+
+        Respon HANYA dalam format JSON persis ini, tanpa teks tambahan:
+        {
+          "food_name": "nama makanan dalam Bahasa Indonesia",
+          "calories": 000,
+          "carbs": 00,
+          "protein": 00,
+          "fat": 00,
+          "sugar": 00,
+          "fiber": 00,
+          "vitamin_a": 00,
+          "vitamin_c": 00,
+          "vitamin_d": 00,
+          "calcium": 00,
+          "cholesterol": 00
+        }
+        Units:
+        - calories: kcal
+        - carbs, protein, fat, sugar, fiber: grams
+        - vitamin_a: mcg (micrograms RAE)
+        - vitamin_c: mg
+        - vitamin_d: mcg
+        - calcium: mg
+        - cholesterol: mg
+        Semua nilai dalam bentuk angka (bukan strings).
+        Estimasikan berdasarkan jumlah per sajian.`,
+      },
+    ];
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content }],
+      max_tokens: 300,
+    });
+
+    const responseContent = response.choices[0].message.content;
+    const cleaned = responseContent.replace(/```json|```/g, '').trim();
+    const nutrition = JSON.parse(cleaned);
+
+    res.json({ nutrition, image_url, description: description || nutrition.food_name });
+  } catch (err) {
+    console.error('analyzeMealCombined error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+module.exports = { analyzeMeal, logMeal, getMealHistory, analyzeTextMeal, uploadImage, analyzeMealCombined };
