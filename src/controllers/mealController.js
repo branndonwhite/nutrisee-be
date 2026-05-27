@@ -2,6 +2,7 @@ const pool = require('../db');
 const getOpenAI = require('../openai');
 const sharp = require('sharp');
 const { uploadBase64 } = require('../utils/cloudinary');
+const invalidateAICache = require('../utils/invalidateAICache');
 
 const openai = getOpenAI();
 
@@ -118,6 +119,10 @@ const logMeal = async (req, res) => {
     );
 
     const meal = result.rows[0];
+
+    // Invalidate AI cache so next fetch reflects the new meal
+    const timezone = req.headers['x-timezone'] ?? 'Asia/Jakarta';
+    await invalidateAICache(userId, timezone);
 
     res.status(201).json({
       meal: {
