@@ -1,4 +1,5 @@
 const pool = require('../db');
+const calculateCalorieGoal = require('../utils/calculateCalorieGoal');
 
 // ─── Log a new weight entry ───────────────────────────────────────────────────
 const logWeight = async (req, res) => {
@@ -17,10 +18,27 @@ const logWeight = async (req, res) => {
       [userId, weight, logged_at ?? null]
     );
 
-    // Also keep user_profiles.weight in sync with the latest entry
+    // Fetch profile to recalculate calorie goal with new weight
+    const profileResult = await pool.query(
+      `SELECT height, date_of_birth, gender, activity_level, diet_goal
+       FROM user_profiles WHERE user_id = $1`,
+      [userId]
+    );
+
+    const profile = profileResult.rows[0];
+    const newCalorieGoal = calculateCalorieGoal(
+      weight,
+      parseFloat(profile.height),
+      profile.date_of_birth,
+      profile.gender,
+      profile.activity_level,
+      profile.diet_goal,
+    );
+
+    // Sync weight + recalculated calorie goal
     await pool.query(
-      `UPDATE user_profiles SET weight = $1 WHERE user_id = $2`,
-      [weight, userId]
+      `UPDATE user_profiles SET weight = $1, daily_calorie_goal = $2 WHERE user_id = $3`,
+      [weight, newCalorieGoal, userId]
     );
 
     const entry = result.rows[0];
@@ -29,6 +47,7 @@ const logWeight = async (req, res) => {
         id: entry.id,
         weight: parseFloat(entry.weight),
         logged_at: entry.logged_at,
+        daily_calorie_goal: newCalorieGoal,
       },
     });
   } catch (err) {
