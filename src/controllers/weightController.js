@@ -1,5 +1,6 @@
 const pool = require('../db');
 const calculateCalorieGoal = require('../utils/calculateCalorieGoal');
+const invalidateAICache = require('../utils/invalidateAICache');
 
 // ─── Log a new weight entry ───────────────────────────────────────────────────
 const logWeight = async (req, res) => {
@@ -40,6 +41,10 @@ const logWeight = async (req, res) => {
       `UPDATE user_profiles SET weight = $1, daily_calorie_goal = $2 WHERE user_id = $3`,
       [weight, newCalorieGoal, userId]
     );
+
+    // Invalidate AI cache so next fetch regenerates with updated weight
+    const timezone = req.headers['x-timezone'] ?? 'Asia/Jakarta';
+    await invalidateAICache(userId, timezone);
 
     const entry = result.rows[0];
     res.status(201).json({
@@ -156,6 +161,11 @@ const updateWeightGoal = async (req, res) => {
     }
 
     const p = result.rows[0];
+
+    // Invalidate AI cache so next fetch reflects new target weight
+    const timezone = req.headers['x-timezone'] ?? 'Asia/Jakarta';
+    await invalidateAICache(userId, timezone);
+
     res.json({
       current_weight: parseFloat(p.weight),
       target_weight: parseFloat(p.target_weight),

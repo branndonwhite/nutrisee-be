@@ -21,8 +21,16 @@ const getAIOverview = async (req, res) => {
   const userId = req.user.userId;
   const timezone = getTimezone(req);
   const today = getLocalDate(timezone);
+  const force = req.query.force === 'true';
 
   try {
+    if (force) {
+      await pool.query(
+        `DELETE FROM ai_overviews WHERE user_id = $1 AND date = $2 AND type = 'overview'`,
+        [userId, today]
+      );
+    }
+
     const cached = await pool.query(
       `SELECT content FROM ai_overviews
        WHERE user_id = $1 AND date = $2 AND type = 'overview'`,
